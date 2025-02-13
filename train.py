@@ -29,89 +29,87 @@ class WikiQADataset(Dataset):
         self.qa_pairs = self.generate_qa_pairs()
         print(f"Generated {len(self.qa_pairs)} QA pairs")
         
-    def generate_qa_pairs(self, num_articles=10):
+    def generate_qa_pairs(self, num_articles=100):
         qa_pairs = []
         successful_articles = 0
         
-        # Define basic knowledge topics
-        topics = [
-            "Sky",
-            "Color",
-            "Earth's atmosphere",
-            "Joe Biden",
-            "President of the United States",
-            "United States presidential history",
-            "René Descartes",
-            "History of philosophy",
-            "Western philosophy",
-            "Famous philosophers",
-            "Basic science",
-            "Natural phenomena",
-            "US government",
-            "Philosophy basics",
-            "World leaders"
+        # Replace fixed topics with dynamic category exploration
+        categories = [
+            "Science", "History", "Geography", "Politics", 
+            "Philosophy", "Technology", "Arts", "Sports",
+            "Medicine", "Economics", "Religion", "Culture"
         ]
         
-        for topic in topics:
+        processed_titles = set()  # Track processed articles to avoid duplicates
+        
+        for category in categories:
             try:
-                print(f"Fetching article about: {topic}")
+                # Get articles from category
+                articles = wikipedia.search(category, results=num_articles//len(categories))
                 
-                try:
-                    page = wikipedia.page(topic, auto_suggest=True)
-                    content = page.content
-                    
-                    # Split content into paragraphs and filter for a reasonable length
-                    paragraphs = [p.strip() for p in content.split('\n') 
-                                  if len(p.strip()) > 50 and len(p.strip()) < 300]
-                    
-                    if len(paragraphs) < 2:
+                for article_title in articles:
+                    if article_title in processed_titles:
                         continue
                     
-                    # Generate QA pairs from paragraphs using the first sentence as an answer
-                    for paragraph in paragraphs:
-                        # Extract the first sentence as a concise answer
-                        first_sentence = paragraph.split('.')[0]
-                        if first_sentence:
-                            answer = first_sentence if first_sentence.endswith('.') else first_sentence + '.'
-                        else:
-                            answer = paragraph  # fallback
-                        
-                        # Create simple, direct questions
-                        questions = [
-                            "What color is the sky?",
-                            "Why is the sky blue?",
-                            "Who is the current US president?",
-                            "Who is the president of the United States?",
-                            "Who is Descartes?",
-                            "Tell me about Descartes.",
-                            "What did Descartes do?"
-                        ]
-                        
-                        # Only add QA pairs for relevant topics and questions
-                        for question in questions:
-                            if ("sky" in question.lower() and "sky" in topic.lower()) or \
-                               ("president" in question.lower() and "biden" in topic.lower()) or \
-                               ("descartes" in question.lower() and "descartes" in topic.lower()):
-                                qa_pairs.append({
-                                    'question': question,
-                                    'context': topic,  # context is no longer used in training input
-                                    'answer': answer
-                                })
+                    processed_titles.add(article_title)
                     
-                    successful_articles += 1
-                    print(f"Successfully processed article {successful_articles}/{len(topics)}")
-                    
-                except (wikipedia.DisambiguationError, wikipedia.PageError) as e:
-                    print(f"Skipping article due to error: {str(e)}")
-                    continue
-                
-                time.sleep(1)
+                    try:
+                        print(f"Fetching article: {article_title}")
+                        page = wikipedia.page(article_title, auto_suggest=False)
+                        content = page.content
+                        
+                        # Split content into paragraphs and filter for a reasonable length
+                        paragraphs = [p.strip() for p in content.split('\n') 
+                                      if len(p.strip()) > 50 and len(p.strip()) < 300]
+                        
+                        if len(paragraphs) < 2:
+                            continue
+                        
+                        # Generate QA pairs from paragraphs using the first sentence as an answer
+                        for paragraph in paragraphs:
+                            # Extract the first sentence as a concise answer
+                            first_sentence = paragraph.split('.')[0]
+                            if first_sentence:
+                                answer = first_sentence if first_sentence.endswith('.') else first_sentence + '.'
+                            else:
+                                answer = paragraph  # fallback
+                            
+                            # Create simple, direct questions
+                            questions = [
+                                "What color is the sky?",
+                                "Why is the sky blue?",
+                                "Who is the current US president?",
+                                "Who is the president of the United States?",
+                                "Who is Descartes?",
+                                "Tell me about Descartes.",
+                                "What did Descartes do?"
+                            ]
+                            
+                            # Only add QA pairs for relevant topics and questions
+                            for question in questions:
+                                if ("sky" in question.lower() and "sky" in category.lower()) or \
+                                   ("president" in question.lower() and "biden" in category.lower()) or \
+                                   ("descartes" in question.lower() and "descartes" in category.lower()):
+                                    qa_pairs.append({
+                                        'question': question,
+                                        'context': category,  # context is no longer used in training input
+                                        'answer': answer
+                                    })
+                        
+                        successful_articles += 1
+                        print(f"Successfully processed article {successful_articles}/{len(categories)}")
+                        
+                        # Reduce sleep time for larger datasets
+                        time.sleep(0.5)  # reduced from 1.0
+                        
+                    except (wikipedia.DisambiguationError, wikipedia.PageError) as e:
+                        print(f"Skipping article due to error: {str(e)}")
+                        continue
                 
             except Exception as e:
-                print(f"Error processing article: {str(e)}")
-                time.sleep(1)
+                print(f"Error processing category {category}: {str(e)}")
                 continue
-                
+
         return qa_pairs
     
     def __len__(self):
