@@ -29,6 +29,8 @@ def train_model(model, train_loader, num_epochs, learning_rate, device):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     
+    total_batches = len(train_loader)
+    
     for epoch in range(num_epochs):
         model.train()
         total_loss = 0
@@ -45,7 +47,8 @@ def train_model(model, train_loader, num_epochs, learning_rate, device):
             total_loss += loss.item()
             
             if batch_idx % 100 == 0:
-                print(f'Epoch: {epoch+1}, Batch: {batch_idx}, Loss: {loss.item():.4f}')
+                progress = (batch_idx / total_batches) * 100
+                print(f'Epoch: {epoch+1}/{num_epochs}, Batch: {batch_idx}/{total_batches} ({progress:.1f}%), Loss: {loss.item():.4f}')
         
         avg_loss = total_loss / len(train_loader)
         print(f'Epoch {epoch+1} completed. Average Loss: {avg_loss:.4f}')
