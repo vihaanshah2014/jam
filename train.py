@@ -196,6 +196,8 @@ if __name__ == "__main__":
     # Check requirements first
     check_requirements()
     
+    start_time = time.time()
+    
     print("Initializing dataset...")
     dataset = WikiQADataset()
     
@@ -223,6 +225,20 @@ if __name__ == "__main__":
 
     print("Starting training...")
     train_model(model, train_loader, num_epochs=5, learning_rate=0.0001, device=device)
+    
+    end_time = time.time()
+    training_duration = end_time - start_time
+    hours = int(training_duration // 3600)
+    minutes = int((training_duration % 3600) // 60)
+    seconds = int(training_duration % 60)
+    
+    print(f"\nTotal training time: {hours:02d}:{minutes:02d}:{seconds:02d}")
+    
+    # Save the model and tokenizer
+    print("Saving model and tokenizer...")
+    model.save_pretrained("saved_model")
+    tokenizer.save_pretrained("saved_model")
+    print("Model and tokenizer saved to 'saved_model' directory")
     
     test_questions = [
         "What color is the sky?",
