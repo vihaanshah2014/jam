@@ -193,29 +193,24 @@ def generate_answer(model, tokenizer, question, device, max_length=50, temperatu
     return answer
 
 if __name__ == "__main__":
-    # Load your Harry Potter text file
-    with open("harry_potter.txt", "r", encoding="utf-8") as f:
-        text = f.read()
-
-    # Old Hyperparameters
-    # sequence_length = 100
-    # batch_size = 64
-    # embedding_dim = 128
-    # hidden_dim = 256
-    # num_epochs = 20
-    # learning_rate = 0.001
+    # Check requirements first
+    check_requirements()
     
-    # Hyperparameters
-    sequence_length = 100
-    batch_size = 128
-    embedding_dim = 64
-    hidden_dim = 128
-    num_epochs = 5
-    learning_rate = 0.001
+    print("Initializing dataset...")
+    dataset = WikiQADataset()
     
-    # Create dataset and dataloader
-    dataset = TextDataset(text, sequence_length)
-    train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    if len(dataset) == 0:
+        print("Error: No data was generated. Please check your internet connection and try again.")
+        exit(1)
+        
+    print(f"Dataset created successfully with {len(dataset)} samples")
+    
+    train_loader = DataLoader(
+        dataset,
+        batch_size=8,  # Reduced batch size
+        shuffle=True,
+        num_workers=0
+    )
     
     device = "cpu"
     print("Initializing model...")
