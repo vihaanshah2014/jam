@@ -85,11 +85,11 @@ if __name__ == "__main__":
     # learning_rate = 0.001
     
     # Hyperparameters
-    sequence_length = 100
-    batch_size = 128
-    embedding_dim = 64
-    hidden_dim = 128
-    num_epochs = 5
+    sequence_length = 50
+    batch_size = 256
+    embedding_dim = 32
+    hidden_dim = 64
+    num_epochs = 1
     learning_rate = 0.001
     
     # Create dataset and dataloader
