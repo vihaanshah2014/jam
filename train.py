@@ -72,13 +72,21 @@ if __name__ == "__main__":
     # Load your Harry Potter text file
     with open("harry_potter.txt", "r", encoding="utf-8") as f:
         text = f.read()
+
+    # Old Hyperparameters
+    # sequence_length = 100
+    # batch_size = 64
+    # embedding_dim = 128
+    # hidden_dim = 256
+    # num_epochs = 20
+    # learning_rate = 0.001
     
     # Hyperparameters
     sequence_length = 100
-    batch_size = 64
-    embedding_dim = 128
-    hidden_dim = 256
-    num_epochs = 20
+    batch_size = 128
+    embedding_dim = 64
+    hidden_dim = 128
+    num_epochs = 5
     learning_rate = 0.001
     
     # Create dataset and dataloader
