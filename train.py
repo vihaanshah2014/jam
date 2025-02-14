@@ -33,19 +33,40 @@ class WikiQADataset(Dataset):
         qa_pairs = []
         successful_articles = 0
         
-        # Replace fixed topics with dynamic category exploration
-        categories = [
-            "Science", "History", "Geography", "Politics", 
-            "Philosophy", "Technology", "Arts", "Sports",
-            "Medicine", "Economics", "Religion", "Culture"
-        ]
+        # Define broader categories and their associated questions
+        topics = {
+            "Science": [
+                "What is gravity?",
+                "How does photosynthesis work?",
+                "What is the theory of relativity?",
+            ],
+            "History": [
+                "Who was Alexander the Great?",
+                "What happened during World War II?",
+                "When was the Renaissance period?",
+            ],
+            "Geography": [
+                "What is the capital of France?",
+                "Where is Mount Everest located?",
+                "What is the longest river in the world?",
+            ],
+            "Philosophy": [
+                "Who was Socrates?",
+                "What is existentialism?",
+                "What are Plato's main ideas?",
+            ],
+            "Technology": [
+                "What is artificial intelligence?",
+                "How does the internet work?",
+                "What is cloud computing?",
+            ]
+        }
         
-        processed_titles = set()  # Track processed articles to avoid duplicates
+        processed_titles = set()
         
-        for category in categories:
+        for category, questions in topics.items():
             try:
-                # Get articles from category
-                articles = wikipedia.search(category, results=num_articles//len(categories))
+                articles = wikipedia.search(category, results=num_articles//len(topics))
                 
                 for article_title in articles:
                     if article_title in processed_titles:
@@ -58,49 +79,24 @@ class WikiQADataset(Dataset):
                         page = wikipedia.page(article_title, auto_suggest=False)
                         content = page.content
                         
-                        # Split content into paragraphs and filter for a reasonable length
+                        # Split content into paragraphs
                         paragraphs = [p.strip() for p in content.split('\n') 
-                                      if len(p.strip()) > 50 and len(p.strip()) < 300]
+                                    if len(p.strip()) > 50 and len(p.strip()) < 300]
                         
-                        if len(paragraphs) < 2:
-                            continue
-                        
-                        # Generate QA pairs from paragraphs using the first sentence as an answer
-                        for paragraph in paragraphs:
-                            # Extract the first sentence as a concise answer
-                            first_sentence = paragraph.split('.')[0]
-                            if first_sentence:
-                                answer = first_sentence if first_sentence.endswith('.') else first_sentence + '.'
-                            else:
-                                answer = paragraph  # fallback
-                            
-                            # Create simple, direct questions
-                            questions = [
-                                "What color is the sky?",
-                                "Why is the sky blue?",
-                                "Who is the current US president?",
-                                "Who is the president of the United States?",
-                                "Who is Descartes?",
-                                "Tell me about Descartes.",
-                                "What did Descartes do?"
-                            ]
-                            
-                            # Only add QA pairs for relevant topics and questions
-                            for question in questions:
-                                if ("sky" in question.lower() and "sky" in category.lower()) or \
-                                   ("president" in question.lower() and "biden" in category.lower()) or \
-                                   ("descartes" in question.lower() and "descartes" in category.lower()):
+                        if paragraphs:
+                            # Use each paragraph as a potential answer
+                            for paragraph in paragraphs[:3]:  # Limit to first 3 paragraphs
+                                for question in questions:
                                     qa_pairs.append({
                                         'question': question,
-                                        'context': category,  # context is no longer used in training input
-                                        'answer': answer
+                                        'context': category,
+                                        'answer': paragraph
                                     })
+                            
+                            successful_articles += 1
+                            print(f"Successfully processed article {successful_articles}/{len(topics)}")
                         
-                        successful_articles += 1
-                        print(f"Successfully processed article {successful_articles}/{len(categories)}")
-                        
-                        # Reduce sleep time for larger datasets
-                        time.sleep(0.5)  # reduced from 1.0
+                        time.sleep(0.5)
                         
                     except (wikipedia.DisambiguationError, wikipedia.PageError) as e:
                         print(f"Skipping article due to error: {str(e)}")
@@ -110,6 +106,7 @@ class WikiQADataset(Dataset):
                 print(f"Error processing category {category}: {str(e)}")
                 continue
 
+        print(f"Generated {len(qa_pairs)} QA pairs")
         return qa_pairs
     
     def __len__(self):
