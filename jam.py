@@ -1,5 +1,27 @@
 import torch
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 from transformers import T5ForConditionalGeneration, T5Tokenizer
+from typing import Optional
+
+# Initialize FastAPI app
+app = FastAPI()
+
+# Initialize global model and tokenizer
+device = "cpu"
+try:
+    tokenizer = T5Tokenizer.from_pretrained("saved_model")
+    model = T5ForConditionalGeneration.from_pretrained("saved_model").to(device)
+except Exception as e:
+    print(f"Error loading model: {str(e)}")
+    raise RuntimeError("Failed to load model. Ensure model is saved correctly.")
+
+# Define request model
+class QuestionRequest(BaseModel):
+    question: str
+    max_length: Optional[int] = 150
+    temperature: Optional[float] = 0.7
+    num_beams: Optional[int] = 5
 
 def generate_answer(model, tokenizer, question, device, max_length=50, temperature=0.7, num_beams=5):
     model.eval()
@@ -17,30 +39,18 @@ def generate_answer(model, tokenizer, question, device, max_length=50, temperatu
     answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return answer
 
-if __name__ == "__main__":
-    device = "cpu"
-    print("Loading model and tokenizer...")
-    
+@app.post("/api/generate")
+async def generate(request: QuestionRequest):
     try:
-        tokenizer = T5Tokenizer.from_pretrained("saved_model")
-        model = T5ForConditionalGeneration.from_pretrained("saved_model").to(device)
-        print("Model loaded successfully!")
-    except Exception as e:
-        print(f"Error loading model: {str(e)}")
-        print("Make sure you have trained and saved the model first.")
-        exit(1)
-
-    print("\nInteractive Question Answering (type 'exit' to quit):")
-    while True:
-        user_question = input("Your question: ")
-        if user_question.lower() in ["exit", "quit"]:
-            break
         answer = generate_answer(
-            model, 
-            tokenizer, 
-            user_question, 
-            device, 
-            max_length=150, 
-            temperature=0.7
+            model,
+            tokenizer,
+            request.question,
+            device,
+            max_length=request.max_length,
+            temperature=request.temperature,
+            num_beams=request.num_beams
         )
-        print(f"A: {answer}\n") 
+        return {"answer": answer}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) 
