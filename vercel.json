@@ -11,5 +11,8 @@
             "src": "/(.*)",
             "dest": "jam.py"
         }
-    ]
+    ],
+    "env": {
+        "PYTHONPATH": "."
+    }
 } 
