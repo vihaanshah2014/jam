@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-import wikipedia
+from datasets import load_dataset
 from transformers import T5ForConditionalGeneration, T5Tokenizer
 import time
 
@@ -23,101 +23,42 @@ def check_requirements():
         pass
 
 class WikiQADataset(Dataset):
-    def __init__(self, max_length=512):
+    def __init__(self, max_length=64, max_samples=1000):
         self.tokenizer = T5Tokenizer.from_pretrained("t5-small")
         self.max_length = max_length
-        self.qa_pairs = self.generate_qa_pairs()
-        print(f"Generated {len(self.qa_pairs)} QA pairs")
         
-    def generate_qa_pairs(self, num_articles=100):
-        qa_pairs = []
-        successful_articles = 0
+        print("Loading dataset...")
+        dataset = load_dataset("SohamGhadge/casual-conversation")['train']
         
-        # Define broader categories and their associated questions
-        topics = {
-            "Science": [
-                "What is gravity?",
-                "How does photosynthesis work?",
-                "What is the theory of relativity?",
-            ],
-            "History": [
-                "Who was Alexander the Great?",
-                "What happened during World War II?",
-                "When was the Renaissance period?",
-            ],
-            "Geography": [
-                "What is the capital of France?",
-                "Where is Mount Everest located?",
-                "What is the longest river in the world?",
-            ],
-            "Philosophy": [
-                "Who was Socrates?",
-                "What is existentialism?",
-                "What are Plato's main ideas?",
-            ],
-            "Technology": [
-                "What is artificial intelligence?",
-                "How does the internet work?",
-                "What is cloud computing?",
-            ]
-        }
+        all_examples = list(dataset)[:max_samples]
         
-        processed_titles = set()
-        
-        for category, questions in topics.items():
-            try:
-                articles = wikipedia.search(category, results=num_articles//len(topics))
+        self.examples = []
+        for item in all_examples:
+            if item.get('question') and item.get('answer'):
+                # Clean and format the text
+                question = item['question'].strip()
+                answer = item['answer'].strip()
                 
-                for article_title in articles:
-                    if article_title in processed_titles:
-                        continue
+                # Skip if either is too short
+                if len(question) < 3 or len(answer) < 3:
+                    continue
                     
-                    processed_titles.add(article_title)
-                    
-                    try:
-                        print(f"Fetching article: {article_title}")
-                        page = wikipedia.page(article_title, auto_suggest=False)
-                        content = page.content
-                        
-                        # Split content into paragraphs
-                        paragraphs = [p.strip() for p in content.split('\n') 
-                                    if len(p.strip()) > 50 and len(p.strip()) < 300]
-                        
-                        if paragraphs:
-                            # Use each paragraph as a potential answer
-                            for paragraph in paragraphs[:3]:  # Limit to first 3 paragraphs
-                                for question in questions:
-                                    qa_pairs.append({
-                                        'question': question,
-                                        'context': category,
-                                        'answer': paragraph
-                                    })
-                            
-                            successful_articles += 1
-                            print(f"Successfully processed article {successful_articles}/{len(topics)}")
-                        
-                        time.sleep(0.5)
-                        
-                    except (wikipedia.DisambiguationError, wikipedia.PageError) as e:
-                        print(f"Skipping article due to error: {str(e)}")
-                        continue
-                
-            except Exception as e:
-                print(f"Error processing category {category}: {str(e)}")
-                continue
-
-        print(f"Generated {len(qa_pairs)} QA pairs")
-        return qa_pairs
+                self.examples.append({
+                    'question': question,
+                    'answer': answer
+                })
+                if len(self.examples) >= max_samples:
+                    break
+        
+        print(f"Loaded {len(self.examples)} valid samples from casual conversation dataset")
     
     def __len__(self):
-        return len(self.qa_pairs)
+        return len(self.examples)
     
     def __getitem__(self, idx):
-        qa_pair = self.qa_pairs[idx]
+        item = self.examples[idx]
         
-        # Use only the question in the input so that testing takes a simple question-only prompt
-        input_text = f"question: {qa_pair['question']}"
-        target_text = qa_pair['answer']
+        input_text = f"question: {item['question']}"
         
         inputs = self.tokenizer(
             input_text,
@@ -126,14 +67,15 @@ class WikiQADataset(Dataset):
             truncation=True,
             return_tensors='pt'
         )
+        
         targets = self.tokenizer(
-            target_text,
+            text=item['answer'],
             max_length=self.max_length,
             padding='max_length',
             truncation=True,
             return_tensors='pt'
         )
-        # For T5 training, replace padding token id with -100 in labels so they are ignored by the loss
+        
         labels = targets['input_ids'].squeeze()
         labels[labels == self.tokenizer.pad_token_id] = -100
         
@@ -151,7 +93,7 @@ def train_model(model, train_loader, num_epochs, learning_rate, device):
         model.train()
         total_loss = 0
         print(f"\nEpoch {epoch+1}/{num_epochs}")
-        print("=" * 50)
+        print("=" * 30)
         
         for batch_idx, batch in enumerate(train_loader):
             optimizer.zero_grad()
@@ -164,37 +106,40 @@ def train_model(model, train_loader, num_epochs, learning_rate, device):
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
-            progress = (batch_idx + 1) / total_batches * 100
-            if batch_idx % 5 == 0 or batch_idx == total_batches - 1:
-                print(f"Progress: {progress:.1f}% [{batch_idx + 1}/{total_batches}] | Loss: {loss.item():.4f}")
+            
+            if batch_idx % 10 == 0 or batch_idx == total_batches - 1:
+                progress = (batch_idx + 1) / total_batches * 100
+                print(f"Progress: {progress:.1f}% | Loss: {loss.item():.4f}")
+                
         avg_loss = total_loss / total_batches
-        print(f"\nEpoch {epoch+1} Average Loss: {avg_loss:.4f}")
+        print(f"Epoch {epoch+1} Avg Loss: {avg_loss:.4f}")
 
 def generate_answer(model, tokenizer, question, device, max_length=50, temperature=0.7, num_beams=5):
     model.eval()
     input_str = f"question: {question}"
     inputs = tokenizer.encode(input_str, return_tensors="pt").to(device)
     
-    # Note: setting do_sample=True allows temperature to be used.
     outputs = model.generate(
          inputs,
          max_length=max_length,
          num_beams=num_beams,
          do_sample=True,
          temperature=temperature,
-         early_stopping=True
+         early_stopping=True,
+         no_repeat_ngram_size=3,  # Prevent repetition
+         top_k=50,  # Limit vocabulary choices
+         top_p=0.9  # Nucleus sampling
     )
     answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return answer
 
 if __name__ == "__main__":
-    # Check requirements first
     check_requirements()
     
     start_time = time.time()
     
     print("Initializing dataset...")
-    dataset = WikiQADataset()
+    dataset = WikiQADataset(max_length=64)
     
     if len(dataset) == 0:
         print("Error: No data was generated. Please check your internet connection and try again.")
@@ -204,22 +149,33 @@ if __name__ == "__main__":
     
     train_loader = DataLoader(
         dataset,
-        batch_size=8,  # Reduced batch size
+        batch_size=4,
         shuffle=True,
-        num_workers=0
+        num_workers=1,
+        pin_memory=False
     )
     
-    device = "cpu"
+    device = torch.device("cpu")
+    print(f"Using device: {device}")
+    
     print("Initializing model...")
     tokenizer = T5Tokenizer.from_pretrained("t5-small")
     model = T5ForConditionalGeneration.from_pretrained("t5-small").to(device)
     
-    # Freeze the encoder parameters to reduce compute and avoid overfitting
     for param in model.encoder.parameters():
         param.requires_grad = False
+    for i in range(4):
+        for param in model.decoder.block[i].parameters():
+            param.requires_grad = False
 
     print("Starting training...")
-    train_model(model, train_loader, num_epochs=5, learning_rate=0.0001, device=device)
+    train_model(
+        model, 
+        train_loader, 
+        num_epochs=3,  # Increased epochs
+        learning_rate=0.001,
+        device=device
+    )
     
     end_time = time.time()
     training_duration = end_time - start_time
@@ -229,7 +185,6 @@ if __name__ == "__main__":
     
     print(f"\nTotal training time: {hours:02d}:{minutes:02d}:{seconds:02d}")
     
-    # Save the model and tokenizer
     print("Saving model and tokenizer...")
     model.save_pretrained("saved_model")
     tokenizer.save_pretrained("saved_model")
@@ -254,7 +209,6 @@ if __name__ == "__main__":
         print(f"\nQ: {question}")
         print(f"A: {answer}")
     
-    # Add interactive mode so you can ask your own questions after training
     print("\nInteractive Question Answering (type 'exit' to quit):")
     while True:
         user_question = input("Your question: ")
