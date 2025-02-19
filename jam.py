@@ -1,61 +1,82 @@
-import torch
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from transformers import T5ForConditionalGeneration, T5Tokenizer
-from typing import Optional
+import os
+import json
+import traceback
 
-# Initialize FastAPI app
-app = FastAPI()
+# Ensure CUDA is disabled
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
-# Initialize global model and tokenizer
-device = "cpu"
-try:
-    tokenizer = T5Tokenizer.from_pretrained("saved_model")
-    model = T5ForConditionalGeneration.from_pretrained("saved_model").to(device)
-except Exception as e:
-    print(f"Error loading model: {str(e)}")
-    raise RuntimeError("Failed to load model. Ensure model is saved correctly.")
+_model = None
+_tokenizer = None
 
-# Define request model
-class QuestionRequest(BaseModel):
-    question: str
-    max_length: Optional[int] = 150
-    temperature: Optional[float] = 0.7
-    num_beams: Optional[int] = 5
+def load_model():
+    global _model, _tokenizer
+    if _model is None:
+        import torch
+        from transformers import T5ForConditionalGeneration, T5Tokenizer
+        torch.set_default_tensor_type(torch.FloatTensor)
+        _tokenizer = T5Tokenizer.from_pretrained("saved_model")
+        _model = T5ForConditionalGeneration.from_pretrained(
+            "saved_model",
+            torch_dtype=torch.float32,
+            device_map="cpu"
+        )
+        _model.eval()
+    return _model, _tokenizer
 
-def generate_answer(model, tokenizer, question, device, max_length=50, temperature=0.7, num_beams=5):
-    model.eval()
+def generate_answer(question, max_length=50, temperature=0.7, num_beams=5):
+    model, tokenizer = load_model()
     input_str = f"question: {question}"
-    inputs = tokenizer.encode(input_str, return_tensors="pt").to(device)
-    
-    outputs = model.generate(
-         inputs,
-         max_length=max_length,
-         num_beams=num_beams,
-         do_sample=True,
-         temperature=temperature,
-         early_stopping=True
-    )
+    inputs = tokenizer.encode(input_str, return_tensors="pt")
+    import torch
+    with torch.no_grad():
+        outputs = model.generate(
+            inputs,
+            max_length=max_length,
+            num_beams=num_beams,
+            do_sample=True,
+            temperature=temperature,
+            early_stopping=True
+        )
     answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return answer
 
-@app.post("/api/generate")
-async def generate(request: QuestionRequest):
+def lambda_handler(event, context):
     try:
-        answer = generate_answer(
-            model,
-            tokenizer,
-            request.question,
-            device,
-            max_length=request.max_length,
-            temperature=request.temperature,
-            num_beams=request.num_beams
-        )
-        return {"answer": answer}
+        body = json.loads(event['body'])
+        question = body['question']
+        max_length = body.get('max_length', 150)
+        temperature = body.get('temperature', 0.7)
+        num_beams = body.get('num_beams', 5)
+        answer = generate_answer(question, max_length, temperature, num_beams)
+        return {
+            'statusCode': 200,
+            'body': json.dumps({'answer': answer}),
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            }
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        error_details = traceback.format_exc()
+        print("Error occurred:", error_details)
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': str(e)}),
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            }
+        }
 
-# Add uvicorn server
+# FastAPI app for local testing
+from fastapi import FastAPI, Request
+app = FastAPI()
+
+@app.post("/api/generate")
+async def api_generate(request: Request):
+    event = {"body": (await request.body()).decode("utf-8")}
+    return lambda_handler(event, None)
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    uvicorn.run("jam:app", host="0.0.0.0", port=8000, reload=True)
