@@ -18,7 +18,8 @@ def load_model():
         _model = T5ForConditionalGeneration.from_pretrained(
             "saved_model",
             torch_dtype=torch.float32,
-            device_map="cpu"
+            device_map="cpu",
+            low_cpu_mem_usage=True
         )
         _model.eval()
     return _model, _tokenizer

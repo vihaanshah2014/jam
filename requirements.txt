@@ -1,7 +1,62 @@
 --index-url https://download.pytorch.org/whl/cpu
 --extra-index-url https://pypi.org/simple
+
+# Core ML and model dependencies
 torch==2.1.0+cpu
 transformers==4.35.2
+sentencepiece==0.1.99
+numpy>=1.17,<2.0
+accelerate>=0.27.0
+
+# Web framework for API
 fastapi==0.109.0
 uvicorn==0.27.0
-sentencepiece==0.1.99
+
+# Required by transformers
+tqdm>=4.27
+regex!=2019.12.17
+requests>=2.31.0
+packaging>=20.0
+filelock>=3.0.0
+pyyaml>=5.1
+huggingface-hub>=0.16.4
+tokenizers>=0.14,<0.19
+safetensors>=0.3.1
+
+# Scientific computing
+scipy>=1.5.0
+pandas>=1.0.0
+scikit-learn>=0.24.0
+
+# Web framework
+starlette>=0.35.0
+pydantic>=2.0.0,<3.0.0
+
+# Utilities
+importlib-metadata>=6.0
+typing-extensions>=4.0.0
+sympy>=1.1.0
+networkx>=3.0
+jinja2>=3.0
+fsspec>=2023.0
+
+# HTTP and networking
+charset-normalizer>=2.0
+idna>=2.5
+urllib3>=1.21.1
+certifi>=2017.4.17
+click>=7.0
+h11>=0.8
+
+# Type checking and async
+annotated-types>=0.6.0
+pydantic-core>=2.27.0
+anyio>=3.4.0
+sniffio>=1.1
+exceptiongroup>=1.0.2
+
+# Additional ML dependencies
+joblib>=0.11
+threadpoolctl>=2.0.0
+setuptools>=49.0.0
+wheel>=0.38.0
