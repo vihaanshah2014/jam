@@ -26,7 +26,8 @@ RUN python -m pip install --no-cache-dir --upgrade pip && \
         "safetensors>=0.3.1" \
         "numpy>=1.17,<2.0" \
         "accelerate>=0.27.0" \
-        "sentencepiece==0.1.99" && \
+        "sentencepiece==0.1.99" \
+        "uvicorn" && \
     pip install --no-cache-dir -r requirements.txt --target . && \
     find . -type d -name "tests" -exec rm -rf {} + && \
     find . -type d -name "examples" -exec rm -rf {} + && \
@@ -60,7 +61,8 @@ RUN pip install --no-cache-dir /tmp/wheels/torch-2.1.0-cp39-cp39-linux_x86_64.wh
         "safetensors>=0.3.1" \
         "numpy>=1.17,<2.0" \
         "accelerate>=0.27.0" \
-        "sentencepiece==0.1.99"
+        "sentencepiece==0.1.99" \
+        "uvicorn"
 
 # Copy dependencies and application files from builder
 COPY --from=builder /var/task/. .

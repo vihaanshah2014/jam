@@ -11,36 +11,25 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       PackageType: Image
-      Environment:
-        Variables:
-          TORCH_DEVICE: "cpu"
-          CUDA_VISIBLE_DEVICES: ""
-          PYTHONPATH: "/var/task"
-      Policies:
-        - AWSLambdaBasicExecutionRole
-        - Statement:
-            - Effect: Allow
-              Action:
-                - ecr:GetDownloadUrlForLayer
-                - ecr:BatchGetImage
-                - ecr:GetAuthorizationToken
-                - logs:CreateLogGroup
-                - logs:CreateLogStream
-                - logs:PutLogEvents
-              Resource: "*"
+      ImageUri: 767828769405.dkr.ecr.us-east-2.amazonaws.com/jam-api:docker
+      ImageConfig:
+        Command: ["jam.lambda_handler"]
       Events:
-        Generate:
+        GenerateAPI:
           Type: Api
           Properties:
             Path: /api/generate
             Method: post
-            RestApiId: !Ref ServerlessRestApi
+            RestApiId: !Ref ApiGatewayApi
+      Environment:
+        Variables:
+          PYTORCH_ENABLE_MPS_FALLBACK: "1"
     Metadata:
-      Dockerfile: Dockerfile
+      DockerTag: python3.9-v1
       DockerContext: .
-      BuildMethod: docker
+      Dockerfile: Dockerfile
 
-  ServerlessRestApi:
+  ApiGatewayApi:
     Type: AWS::Serverless::Api
     Properties:
       StageName: Prod
@@ -53,7 +42,7 @@ Resources:
 Outputs:
   ApiEndpoint:
     Description: "API Gateway endpoint URL"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/api/generate"
+    Value: !Sub "https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/api/generate"
   FunctionArn:
     Description: "Lambda Function ARN"
     Value: !GetAtt GenerateFunction.Arn

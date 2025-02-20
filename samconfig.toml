@@ -1,0 +1,17 @@
+version = 0.1
+[default]
+[default.build]
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "solis-jamm"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-XXXXXXXXXXXX"
+s3_prefix = "solis-jamm"
+region = "us-east-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+image_repositories = ["GenerateFunction=767828769405.dkr.ecr.us-east-2.amazonaws.com/jam-api"] 
+resolve_s3 = true
