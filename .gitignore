@@ -2,3 +2,8 @@
 /mvenv
 /__pycache__
 /hidden
+Dockerfile
+template.yaml
+samconfig.toml
+Deploy_Instructions.md
+erc-policy.json
