@@ -1,0 +1,3 @@
+Interesting Datasets to maybe consider adding to the project:
+
+- https://huggingface.co/datasets/stingning/ultrachat
