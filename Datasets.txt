@@ -1,3 +1,6 @@
 Interesting Datasets to maybe consider adding to the project:
 
 - https://huggingface.co/datasets/stingning/ultrachat
+
+-https://huggingface.co/datasets/lmsys/lmsys-chat-1m ??
+(not really understanding this one)
