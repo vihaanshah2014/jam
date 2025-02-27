@@ -15,6 +15,10 @@ import gc
 # Ensure CUDA is disabled
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
+# Unified sequence length for all datasets
+MAX_INPUT_LENGTH = 128
+MAX_TARGET_LENGTH = 64
+
 def check_requirements():
     try:
         import sentencepiece
@@ -32,9 +36,8 @@ def check_requirements():
         pass
 
 class CasualConversationDataset(Dataset):
-    def __init__(self, tokenizer, max_length=64, max_samples=1000):
+    def __init__(self, tokenizer, max_samples=1000):
         self.tokenizer = tokenizer
-        self.max_length = max_length
         
         print("Loading Casual Conversation dataset...")
         dataset = load_dataset("SohamGhadge/casual-conversation")['train']
@@ -71,7 +74,7 @@ class CasualConversationDataset(Dataset):
         
         inputs = self.tokenizer(
             input_text,
-            max_length=self.max_length,
+            max_length=MAX_INPUT_LENGTH,
             padding='max_length',
             truncation=True,
             return_tensors='pt'
@@ -79,7 +82,7 @@ class CasualConversationDataset(Dataset):
         
         targets = self.tokenizer(
             text=item['answer'],
-            max_length=self.max_length,
+            max_length=MAX_TARGET_LENGTH,
             padding='max_length',
             truncation=True,
             return_tensors='pt'
@@ -95,9 +98,8 @@ class CasualConversationDataset(Dataset):
         }
 
 class SQuADDataset(Dataset):
-    def __init__(self, tokenizer, max_length=128, max_samples=5000):
+    def __init__(self, tokenizer, max_samples=5000):
         self.tokenizer = tokenizer
-        self.max_length = max_length
         
         print("Loading SQuAD dataset...")
         squad_dataset = load_dataset("rajpurkar/squad")['train']
@@ -137,7 +139,7 @@ class SQuADDataset(Dataset):
         
         inputs = self.tokenizer(
             input_text,
-            max_length=self.max_length,
+            max_length=MAX_INPUT_LENGTH,
             padding='max_length',
             truncation=True,
             return_tensors='pt'
@@ -145,7 +147,7 @@ class SQuADDataset(Dataset):
         
         targets = self.tokenizer(
             text=item['answer'],
-            max_length=self.max_length // 2,  # Answers are typically shorter
+            max_length=MAX_TARGET_LENGTH,
             padding='max_length',
             truncation=True,
             return_tensors='pt'
@@ -163,9 +165,8 @@ class SQuADDataset(Dataset):
 class UltraChatDataset(Dataset):
     CACHE_DIR = "dataset_cache"
     
-    def __init__(self, tokenizer, max_length=128, max_samples=3000, stream_loading=True, cache=True):
+    def __init__(self, tokenizer, max_samples=3000, stream_loading=True, cache=True):
         self.tokenizer = tokenizer
-        self.max_length = max_length
         self.max_samples = max_samples
         self.cache = cache
         
@@ -266,7 +267,7 @@ class UltraChatDataset(Dataset):
         
         inputs = self.tokenizer(
             input_text,
-            max_length=self.max_length,
+            max_length=MAX_INPUT_LENGTH,
             padding='max_length',
             truncation=True,
             return_tensors='pt'
@@ -274,7 +275,7 @@ class UltraChatDataset(Dataset):
         
         targets = self.tokenizer(
             text=item['answer'],
-            max_length=self.max_length,
+            max_length=MAX_TARGET_LENGTH,
             padding='max_length',
             truncation=True,
             return_tensors='pt'
@@ -288,6 +289,18 @@ class UltraChatDataset(Dataset):
             'attention_mask': inputs['attention_mask'].squeeze(),
             'labels': labels
         }
+
+# Custom collate function to handle potential mismatches
+def custom_collate_fn(batch):
+    input_ids = torch.stack([item['input_ids'] for item in batch])
+    attention_mask = torch.stack([item['attention_mask'] for item in batch])
+    labels = torch.stack([item['labels'] for item in batch])
+    
+    return {
+        'input_ids': input_ids,
+        'attention_mask': attention_mask,
+        'labels': labels
+    }
 
 def train_model(model, train_loader, num_epochs, learning_rate, max_grad_norm=1.0, performance_mode='balanced'):
     optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
@@ -413,6 +426,8 @@ def parse_arguments():
     parser.add_argument("--datasets", type=str, default="all",
                         choices=["all", "casual", "squad", "ultrachat", "casual+squad", "casual+ultrachat", "squad+ultrachat"],
                         help="Which datasets to use for training")
+    parser.add_argument("--smaller_model", action="store_true",
+                        help="Use smaller batch sizes and sequence lengths to reduce memory usage")
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -421,9 +436,17 @@ if __name__ == "__main__":
     
     start_time = time.time()
     
+    # Adjust sequence lengths if smaller model is requested
+    if args.smaller_model:
+        # Modify the global variables directly instead of redeclaring them
+        globals()["MAX_INPUT_LENGTH"] = 64
+        globals()["MAX_TARGET_LENGTH"] = 32
+        print("Using smaller sequence lengths to reduce memory usage")
+    
     print(f"Performance mode: {args.performance_mode}")
     print(f"Using model size: t5-{args.model_size}")
     print(f"Datasets selected: {args.datasets}")
+    print(f"Input sequence length: {MAX_INPUT_LENGTH}, Target sequence length: {MAX_TARGET_LENGTH}")
     
     print("Initializing tokenizer...")
     tokenizer = T5Tokenizer.from_pretrained(f"t5-{args.model_size}")
@@ -433,11 +456,11 @@ if __name__ == "__main__":
     
     # Load selected datasets based on command line arguments
     if args.datasets in ["all", "casual", "casual+squad", "casual+ultrachat"]:
-        casual_dataset = CasualConversationDataset(tokenizer, max_length=64, max_samples=args.casual_samples)
+        casual_dataset = CasualConversationDataset(tokenizer, max_samples=args.casual_samples)
         datasets.append(casual_dataset)
     
     if args.datasets in ["all", "squad", "casual+squad", "squad+ultrachat"]:
-        squad_dataset = SQuADDataset(tokenizer, max_length=128, max_samples=args.squad_samples)
+        squad_dataset = SQuADDataset(tokenizer, max_samples=args.squad_samples)
         datasets.append(squad_dataset)
     
     if args.datasets in ["all", "ultrachat", "casual+ultrachat", "squad+ultrachat"]:
@@ -447,7 +470,6 @@ if __name__ == "__main__":
         try:
             ultrachat_dataset = UltraChatDataset(
                 tokenizer, 
-                max_length=128, 
                 max_samples=args.ultrachat_samples,
                 stream_loading=not args.no_stream,
                 cache=not args.no_cache
@@ -465,14 +487,24 @@ if __name__ == "__main__":
     combined_dataset = ConcatDataset(datasets)
     print(f"Combined dataset created successfully with {len(combined_dataset)} total samples")
     
-    # Create DataLoader with appropriate batch size
+    # Adjust batch size based on performance mode and model size
+    effective_batch_size = args.batch_size
+    if args.model_size == "large":
+        effective_batch_size = max(1, args.batch_size // 2)
+        print(f"Reducing batch size to {effective_batch_size} for large model")
+    elif args.performance_mode == "power_saver":
+        effective_batch_size = max(1, args.batch_size // 2)
+        print(f"Reducing batch size to {effective_batch_size} for power saver mode")
+        
+    # Create DataLoader with appropriate batch size and custom collate function
     train_loader = DataLoader(
         combined_dataset,
-        batch_size=args.batch_size,
+        batch_size=effective_batch_size,
         shuffle=True,
-        num_workers=1,
+        num_workers=0,  # Set to 0 to avoid multiprocessing issues
         pin_memory=False,
-        drop_last=False
+        drop_last=False,
+        collate_fn=custom_collate_fn  # Use our custom collate function
     )
     
     # CPU-only device
@@ -503,6 +535,12 @@ if __name__ == "__main__":
         )
     except KeyboardInterrupt:
         print("\nTraining interrupted. Saving current model state...")
+    except RuntimeError as e:
+        if "out of memory" in str(e).lower():
+            print("\nOut of memory error! Try using --smaller_model flag or a smaller model size.")
+        else:
+            print(f"\nRuntime error during training: {e}")
+        print("Attempting to save current model state...")
     
     end_time = time.time()
     training_duration = end_time - start_time
@@ -517,9 +555,12 @@ if __name__ == "__main__":
     print(f"Final CPU usage: {cpu_percent}%, Memory usage: {memory_usage:.2f} GB")
     
     print("Saving model and tokenizer...")
-    model.save_pretrained("saved_model")
-    tokenizer.save_pretrained("saved_model")
-    print("Model and tokenizer saved to 'saved_model' directory")
+    try:
+        model.save_pretrained("saved_model")
+        tokenizer.save_pretrained("saved_model")
+        print("Model and tokenizer saved to 'saved_model' directory")
+    except Exception as e:
+        print(f"Error saving model: {e}")
     
     # Create a comprehensive test set
     print("Preparing comprehensive test set...")

@@ -4,27 +4,27 @@ JAM : T5-Based Question Answering System
 Project Overview
 ----------------
 
-This project implements a **T5-based Question Answering System** using the **Hugging Face Transformers library** and **Wikipedia-sourced data**. The model is trained to answer factual questions using text data extracted from Wikipedia. It utilizes the **T5 Transformer model** to generate answers based on user queries.
+This project implements a **T5-based Question Answering System** using the **Hugging Face Transformers library** and **Wikipedia-sourced data**. The model is trained to answer factual questions using text data extracted from Wikipedia. It utilizes the **T5 Transformer model** to generate answers based on user queries.
 
 Goal
 ----
 
 The primary objective of this project is to:
 
--   Train a **T5-based language model** to generate answers to factual questions.
+-   Train a **T5-based language model** to generate answers to factual questions.
 
--   Utilize **Wikipedia** as a source of knowledge to create question-answer pairs for training.
+-   Utilize **Wikipedia** as a source of knowledge to create question-answer pairs for training.
 
--   Develop an **interactive chatbot** that allows users to ask questions and receive AI-generated responses.
+-   Develop an **interactive chatbot** that allows users to ask questions and receive AI-generated responses.
 
--   Implement an **efficient training pipeline** to improve performance and response accuracy.
+-   Implement an **efficient training pipeline** to improve performance and response accuracy.
 
 Features
 --------
 
 -   **Automated Wikipedia-based dataset generation**: The system scrapes Wikipedia articles and formulates QA pairs from them.
 
--   **T5 Model for Answer Generation**: Uses a **pre-trained T5 model** fine-tuned for answering general knowledge questions.
+-   **T5 Model for Answer Generation**: Uses a **pre-trained T5 model** fine-tuned for answering general knowledge questions.
 
 -   **Training Pipeline**: Implements data preprocessing, model fine-tuning, and evaluation.
 
@@ -39,7 +39,7 @@ Current Progress
 
 -   **Data Collection**: Extracts Wikipedia content and formulates QA pairs.
 
--   **Model Loading and Training**: Initializes and trains a **T5-small model**.
+-   **Model Loading and Training**: Initializes and trains a **T5-small model**.
 
 -   **Inference Functionality**: Generates answers for input questions.
 
@@ -125,11 +125,28 @@ Troubleshooting
 Future Enhancements
 -------------------
 
--   **Deploy as an API** (Flask/FastAPI)
+-   **Deploy as an API** (Flask/FastAPI)
 
 -   **Implement a Web Interface**
 
--   **Improve Model Accuracy** with fine-tuning
+-   **Improve Model Accuracy** with fine-tuning
+
+
+Running Options:
+----------------
+Reduced CPU :    python train.py
+
+Avoid UltraChat:    python train.py --smaller_model
+
+Fast Training:    python train.py --performance_mode power_saver
+
+Maximum Performance:    python train.py --performance_mode performance --model_size small --batch_size 8
+
+Other optimization options:
+- For fastest results with high quality: `python train.py --performance_mode performance --batch_size 6`
+- Skip UltraChat loading for faster training: add `--datasets casual+squad` 
+- For development testing: add `--epochs 2`
+- Absolute fastest training (lower quality): `python train.py --performance_mode performance --model_size small --batch_size 12 --datasets casual --epochs 2`
 
 License
 -------
@@ -138,4 +155,4 @@ This project is open-source and licensed under the MIT License.
 
 * * * * *
 
-🚀 **Contributions are welcome!** If you have suggestions or improvements, feel free to submit a pull request.
+🚀 **Contributions are welcome!** If you have suggestions or improvements, feel free to submit a pull request.
