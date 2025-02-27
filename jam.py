@@ -24,7 +24,13 @@ def load_model():
         _model.eval()
     return _model, _tokenizer
 
-def generate_answer(question, max_length=50, temperature=0.7, num_beams=5):
+def generate_answer(question, max_length=150, temperature=0.7, num_beams=5):
+    """
+    Generate an answer for a given question.
+    The question can contain embedded context like:
+    "Given this context: X is Y. What is X?"
+    or just be a simple question.
+    """
     model, tokenizer = load_model()
     input_str = f"question: {question}"
     inputs = tokenizer.encode(input_str, return_tensors="pt")
@@ -36,7 +42,10 @@ def generate_answer(question, max_length=50, temperature=0.7, num_beams=5):
             num_beams=num_beams,
             do_sample=True,
             temperature=temperature,
-            early_stopping=True
+            early_stopping=True,
+            no_repeat_ngram_size=3,  # Prevent repetition
+            top_k=50,  # Limit vocabulary choices
+            top_p=0.9  # Nucleus sampling
         )
     answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return answer
@@ -48,7 +57,11 @@ def lambda_handler(event, context):
         max_length = body.get('max_length', 150)
         temperature = body.get('temperature', 0.7)
         num_beams = body.get('num_beams', 5)
+        
+        # Process the question - no need to handle context separately
+        # as it's embedded in the question
         answer = generate_answer(question, max_length, temperature, num_beams)
+        
         return {
             'statusCode': 200,
             'body': json.dumps({'answer': answer}),
